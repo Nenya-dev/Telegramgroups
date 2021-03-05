@@ -2,6 +2,8 @@
 import asyncio
 from collections import Counter
 
+import bson
+import pymongo
 from telethon.sync import TelegramClient
 from telethon.errors.rpcerrorlist import SessionPasswordNeededError, ChannelPrivateError
 from telethon import functions
@@ -53,7 +55,6 @@ async def connect():
 
 
 async def authorization():
-    client = TelegramClient(phone, api_id, api_hash)
     # Authorized
     if not client.is_user_authorized():
         await client.send_code_request(phone)
@@ -65,24 +66,35 @@ async def authorization():
 
 # get channel
 def get_channel():
-    with TelegramClient(phone, api_id, api_hash) as client:
-        entity = client.get_input_entity('')
-        print(entity)
-        result_1 = client(functions.channels.GetFullChannelRequest(
-        ))
-        print(result_1.stringify())
+    entity = client.get_input_entity('')
+    print(entity)
+    result_1 = client(functions.channels.GetFullChannelRequest())
+    print(result_1.stringify())
 
 
 def get_message_history():
-    i = 0
-    group_list = open('querdenker-test.txt', 'r')
+    not_found_groups = []
+    i = 1
+    with open('QD-test.txt', 'r', encoding='utf8') as file:
+        groups = file.readlines()
+
+    group_list = [x.strip() for x in groups]
 
     while i < len(group_list):
-        for message in client.iter_messages(group_list[i], limit=10000):
-            messages_dict = {'ID': message.sender_id, 'Message': message.text, "Fwd_group": message.fwd_from,
-                             "Reply": message.reply_to, "Group": message.is_group, "Channel": message.is_channel,
-                             "Media": message.media, "Forwarded": message.forwards, 'Date': message.date}
-            posts.insert(messages_dict)
+        try:
+            for message in client.iter_messages(group_list[i], limit=100):
+                # messages_dict = {'ID': message.sender_id, 'Message': message.text, "Fwd_group": message.from_id,
+                #  "Reply": message.reply_to, "Group": message.is_group, "Channel": message.is_channel,
+                #   "Forwarded": message.forwards, "Media": message.media, 'Date': message.date}
+                messages_dict = {'ID': message.sender_id, 'Message': message.text, "Group": message.is_group,
+                                 "Fwd_group": message.from_id,
+                                 "Channel": message.is_channel, "Forwarded": message.forwards, 'Date': message.date}
+
+                posts.insert_one(messages_dict)
+        except ValueError:
+            not_found_groups.append(group_list[i])
+            pass
+
         i = i + 1
 
 
