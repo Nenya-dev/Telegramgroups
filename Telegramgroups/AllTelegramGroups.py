@@ -1,28 +1,27 @@
 # https://towardsdatascience.com/introduction-to-the-telegram-api-b0cd220dbed2
-import asyncio
+
 from collections import Counter
 
-import bson
 import pymongo
 from telethon.sync import TelegramClient
 from telethon.errors.rpcerrorlist import SessionPasswordNeededError, ChannelPrivateError
 from telethon import functions
-from pymongo import MongoClient
 import queue
 import configparser
-import pickle
+import re
 import json
 
 parser = configparser.ConfigParser()
 config_path = r'config.ini'
 parser.read(config_path)
 
-client_db = MongoClient(parser['mongoDB']["client"])
+client_db = pymongo.MongoClient(parser['mongoDB']["client"])
 db = client_db['Telegram_Test']
 posts = db["Querdenker_Test"]
 list_groups = db.GroupList
-my_col = db["QUERDENKER_Chat"]
-query = {"Message": "/http/"}
+my_col = db["Querdenker_Test"]
+query = {'_id': 0, 'ID': 0, 'Group': 0, 'Fwd_group': 0, 'Channel': 0, 'Forwarded': 0, 'Date': 0}
+query_regex = {"Message": {'$regex': '(http|https)\:\/\/[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,3}(\/\S*)?'}}
 
 # my keys
 api_id = parser.getint('telegramKey', 'api_id')
@@ -34,15 +33,12 @@ client = TelegramClient(phone, api_id, api_hash)
 client.connect()
 
 
-def query_db_url():
-    url_list = []
-    my_doc = my_col.find(query)
-    for url in my_doc:
-        url_list.append(url)
+def query_json_url():
+    json_load = json.loads(r'Telegramgroups/Querdenker_Test.json')
+    output = [url for url in json_load if re.match('http|https)\:\/\/[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,3}(\/\S*)?', url['Message'])]
+    output_json = json.dumps(output)
 
-    print(url_list)
-    return url_list
-
+    print(output_json)
 
 # client connect
 async def connect():
@@ -162,5 +158,5 @@ if __name__ == '__main__':
     # get_message_history()
     # asyncio.get_event_loop().run_until_complete(connect())
     # asyncio.get_event_loop().run_until_complete(get_fwd_channel())
-    get_message_history()
-    # query_db_url()
+    # get_message_history()
+    query_json_url()
