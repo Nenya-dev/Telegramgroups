@@ -47,11 +47,15 @@ def data_prep():
     for message in df:
         message = str(message).lower()  # Lowercase words
         message = re.sub(r"\[(.*?)\]", "", message)  # Remove [+XYZ chars] in content
+        # message = re.sub(r"[^a-zA-Z0-9üäöÜÄÖß]", "", message)  # Remove [+XYZ chars] in content
         message = re.sub(r"\s+", " ", message)  # Remove multiple spaces in content
         message = re.sub(r"\w+…|…", "", message)  # Remove ellipsis (and last word)
         message = re.sub(r"(?<=\w)-(?=\w)", " ", message)  # Replace dash between words
         message = re.sub(r'http\S+|www.\S+', "", message)  # Remove urls
-        message = re.sub("[:punct:]", "", message)  # Remove punctuation
+        message = re.sub(r"(?<=\w)-(?=\w)", " ", message)  # Replace dash between words
+        # message = re.sub(r"[^\w\s]", "", message)  # Remove punctuation
+        message = re.sub(r"[!@#$%^&*()[]{};:,./<>?\|`~-=_+]", "", message)
+        message = re.sub(r"\W+", " ", message)
         message = re.sub("["
                          u"\U0001F600-\U0001F64F"  # emoticons
                          u"\U0001F300-\U0001F5FF"  # symbols & pictographs
@@ -72,7 +76,8 @@ def tokenize():
     text_data = pd.DataFrame(list(posts_prep_one.find()))
     df = text_data['Message'].convert_dtypes(convert_string=True)
     lemmatizer = WordNetLemmatizer()
-    stopwords_list = get_stop_words('german') + get_stop_words('english') + stopwords.words("english") + stopwords.words("german")
+    stopwords_list = get_stop_words('german') + get_stop_words('english') + stopwords.words(
+        "english") + stopwords.words("german")
 
     for message in df:
         word_tokens = word_tokenize(message)
@@ -102,7 +107,7 @@ def frequency_distribution():
 
 
 if __name__ == '__main__':
-    # mongoDB_to_dataframe()
-    # data_prep()
+    mongoDB_to_dataframe()
+    data_prep()
     tokenize()
     frequency_distribution()
