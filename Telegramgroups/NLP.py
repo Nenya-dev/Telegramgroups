@@ -54,7 +54,7 @@ def data_prep():
         message = re.sub(r'http\S+|www.\S+', "", message)  # Remove urls
         message = re.sub(r"(?<=\w)-(?=\w)", " ", message)  # Replace dash between words
         # message = re.sub(r"[^\w\s]", "", message)  # Remove punctuation
-        message = re.sub(r"[!@#$%^&*()[]{};:,./<>?\|`~-=_+]", "", message)
+        message = re.sub(r"[!@#$%^&*()[]{};:,./<>?\|`~-=_+__]", "", message)
         message = re.sub(r"\W+", " ", message)
         message = re.sub("["
                          u"\U0001F600-\U0001F64F"  # emoticons
