@@ -1,50 +1,100 @@
 # https://ai.intelligentonlinetools.com/ml/k-means-clustering-example-word2vec/
-from gensim.models import Word2Vec
+import nltk.cluster.util
+from gensim.models import Word2Vec, word2vec
 from sklearn import cluster
-from sklearn import metrics
+from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans
-from matplotlib import pyplot as plt
+from nltk.cluster import KMeansClusterer
+import NLP
+import spacy
+import multiprocessing
+import pandas as pd
+from time import time
+import numpy as np
+import matplotlib as plt
 
-text_messages = tokenized
+nlp = spacy.load("de_core_news_lg")
+posts = NLP.posts_prep_two
+df = pd.DataFrame(list(posts.find()))
+cores = multiprocessing.cpu_count()
+wpt = nltk.WordPunctTokenizer
 
-# Word2vec Modell
-model=Word2Vec(text_messages, vector_size=100, workers=1)
 
-words = list(model.wv.vocab)
-print(words)
+def word2vec_model():
+    tokenized_words = [wpt.tokenize(words) for words in df.Message]
 
-# Anzahl Cluser herausfinden mit Elbow Methode
-X,y = vectors
+    # Word2vec model
+    model = word2vec.Word2Vec(tokenized_words,
+                              min_count=5,
+                              window=2,
+                              sample=6e-5,
+                              alpha=0.01,
+                              min_alpha=0.0007,
+                              negative=20,
+                              workers=cores - 1)
 
-plt.scatter(X[:,0], X[:1])
- wcss = []
- for i in range(1,11):
-     kmeans = KMeans(n_clusters=i, init='k-means++', max_iter=300, n_init=10, random_state=0)
-     kmeans.fit(X)
-     wcss.append(kmeans.inertia_)
-plt.plot(range(1,11), wcss)
-plt.title('Elbow Method')
-plt.xlabel('Number of clusters')
-plt.show()
+    word = model.wv.index2word
+    wvs = model.wv[word]
+    tsne = TSNE(n_components=2, random_state=0, n_iter=5000, perplexity=2)
+    np.set_printoptions(suppress=True)
+    T = tsne.fit_transform(wvs)
+    labels = word
 
-# Kmeans mit Word2vec
+    # Build Vocabulary Table
+    t = time()
+    sentences = NLP.detect_phrases()
+    model_vocab = model.build_vocab(sentences, progress_per=10000)
+    print('Time to build vocab: {} mins'.format(round((time() - t) / 60, 2)))
 
-NUM_CLUSTER = 2
-kmeans = cluster.KMeans(n_clusters=NUM_CLUSTER)
-kmeans.fit(X)
+    # Training model
+    model.train(sentences, total_examples=model.corpus_count, epochs=30, report_delay=1)
+    print('Time to train the model: {} mins'.format(round((time() - t) / 60, 2)))
 
-labels = kmeans.labels_
-centroids = kmeans.cluster_centers_
-print("Cluster id labels for inputted data")
-print(labels)
-print("Centroids data")
-print(centroids)
+    # Test
+    print(model.wv.most_similar(positive=['merkel']))
+    print(model.wv.most_similar(positive=['querdenker']))
 
-print(
-    "Score (Opposite of the value of X on the K-means objective which is Sum of distances of samples to their closest cluster center):")
-print(kmeans.score(X))
+    return model_vocab
 
-silhouette_score = metrics.silhouette_score(X, labels, metric='euclidean')
 
-print("Silhouette_score: ")
-print(silhouette_score)
+def avg_word_vectors(words, model, vocabulary, num_features):
+    feature_vector = np.zeros(num_features, dtype="float64")
+    nwords = 0
+
+    for word in words:
+        if word in vocabulary:
+            nwords = nwords + 1
+            feature_vector = np.add(feature_vector, model[word])
+    if nwords:
+        feature_vector = np.divide(feature_vector, nwords)
+
+        return feature_vector
+
+
+def averaged_word_vectorizer(corpus, model, num_features):
+    vocabulary = set(model.wv.index2word)
+    features = [avg_word_vectors(tokenized_sentence, model, vocabulary, num_features)
+                for tokenized_sentence in corpus]
+    return np.array(features)
+
+
+w2v_feature_array = averaged_word_vectorizer(corpus=, model=w2v_model,
+                                             num_features=feature_size)
+pd.DataFrame(w2v_feature_array)
+
+def kmeans():
+    model = word2vec()
+    X = model[model.vocab]
+
+    NUM_CLUSTERS = 5
+    kclusterer = KMeansClusterer(NUM_CLUSTERS, distance=nltk.cluster.util.cosine_distance, repeats=25)
+    assigned_clusters = kclusterer.cluster(X, assign_clusters=True)
+    print(assigned_clusters)
+
+    words = list(model.vocab)
+    for i, word in enumerate(words):
+        print(word + ":" + str(assigned_clusters[i]))
+
+
+if __name__ == '__main__':
+    kmeans()

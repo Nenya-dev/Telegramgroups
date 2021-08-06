@@ -1,22 +1,22 @@
 # https://dylancastillo.co/nlp-snippets-cluster-documents-using-word2vec/
 import numpy as np
 from nltk import word_tokenize
-from pymongo import MongoClient
 import pandas as pd
 from collections import Counter
 import pymongo
 import configparser
-import nltk
 from HanTa import HanoverTagger as ht
-from nltk.probability import FreqDist
-import matplotlib.pyplot as plt
-import AllTelegramGroups
 from nltk.corpus import stopwords
 import re
-import string
 from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.tokenize.treebank import TreebankWordDetokenizer
 from stop_words import get_stop_words
+from gensim.models.phrases import Phrases, Phraser
+import xlrd
+import spacy
+import seaborn
+import sklearn
+from nltk import bigrams
 
 # nltk.download()
 parser = configparser.ConfigParser()
@@ -41,13 +41,14 @@ def mongoDB_to_dataframe():
 tagger = ht.HanoverTagger('morphmodel_ger.pgz')
 
 
+# Ascii?
 def data_prep():
     df = mongoDB_to_dataframe()
     df.dropna(inplace=True)
     for message in df:
         message = str(message).lower()  # Lowercase words
         message = re.sub(r"\[(.*?)\]", "", message)  # Remove [+XYZ chars] in content
-        # message = re.sub(r"[^a-zA-Z0-9üäöÜÄÖß]", "", message)  # Remove [+XYZ chars] in content
+        message = re.sub(r'[0-9\n]', "", message)  # Remove numbers
         message = re.sub(r"\s+", " ", message)  # Remove multiple spaces in content
         message = re.sub(r"\w+…|…", "", message)  # Remove ellipsis (and last word)
         message = re.sub(r"(?<=\w)-(?=\w)", " ", message)  # Replace dash between words
@@ -55,6 +56,7 @@ def data_prep():
         message = re.sub(r"(?<=\w)-(?=\w)", " ", message)  # Replace dash between words
         # message = re.sub(r"[^\w\s]", "", message)  # Remove punctuation
         message = re.sub(r"[!@#$%^&*()[]{};:,./<>?\|`~-=_+__]", "", message)
+        message = re.sub(r'/_/g', "", message) # remove underscore
         message = re.sub(r"\W+", " ", message)
         message = re.sub("["
                          u"\U0001F600-\U0001F64F"  # emoticons
@@ -68,13 +70,18 @@ def data_prep():
                          u"\u2640-\u2642"
                          "]+", '', message)
 
-        messages_dict = {'Message': message}
-        posts_prep_one.insert_one(messages_dict)
+        if len(message) > 2:
+            messages_dict = {'Message': message}
+            posts_prep_one.insert_one(messages_dict)
+            # print(messages_dict)
+        else:
+            continue
 
 
 def tokenize():
     text_data = pd.DataFrame(list(posts_prep_one.find()))
-    df = text_data['Message'].convert_dtypes(convert_string=True)
+    df_clean = text_data['Message'].convert_dtypes(convert_string=True)
+    df = df_clean.dropna().drop_duplicates()
     lemmatizer = WordNetLemmatizer()
     stopwords_list = get_stop_words('german') + get_stop_words('english') + stopwords.words(
         "english") + stopwords.words("german")
@@ -88,13 +95,26 @@ def tokenize():
         for word in remove_stopwords:
             word = lemmatizer.lemmatize(word)
             clean_messages.append(word)
+            # clean_messages['Message_tok'] = word
         # print(clean_messages)
 
         message_prep = TreebankWordDetokenizer().detokenize(clean_messages)
-        message_dict = {"Message": message_prep}
+        message_dict = {"Message": clean_messages}
+        # print(message_dict)
         posts_prep_two.insert_one(message_dict)
 
         # print(message_prep.head(10))
+
+
+def detect_phrases():
+    text_data = pd.DataFrame(list(posts_prep_two.find()))
+    df = text_data['Message'].convert_dtypes(convert_string=True)
+
+    sent = [row.split() for row in df]
+    phrases = Phrases(sent, min_count=30, progress_per=1000)
+    bigram = Phraser(phrases)
+    sentences = bigram[sent]
+    return sentences
 
 
 def frequency_distribution():
@@ -107,7 +127,7 @@ def frequency_distribution():
 
 
 if __name__ == '__main__':
-    mongoDB_to_dataframe()
-    data_prep()
+    # mongoDB_to_dataframe()
+    # data_prep()
     tokenize()
-    frequency_distribution()
+    # frequency_distribution()
