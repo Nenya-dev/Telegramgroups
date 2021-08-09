@@ -47,7 +47,7 @@ def part_of_speech():
     pos = []
     name_entity = []
 
-    df = pd.DataFrame(list(messages_original.find())).head(200)
+    df = pd.DataFrame(list(messages_original.find())).head(2000)
     # df = text_data['Message'].convert_dtypes(convert_string=True)
     for message in df['Message']:
         nlp_message = nlp(message)
@@ -60,9 +60,9 @@ def part_of_speech():
 
         df['entity_text'] = pd.Series(name_entity)
         df['PoS'] = pd.Series(pos)
-   # df.to_pickle('PoS_2.pkl')
+    df.to_pickle('PoS.pkl')
     # print(df.head(20))
-    pprint.pprint(df['PoS'].values.tolist()[:200])
+    # pprint.pprint(df['PoS'].values.tolist()[:200])
 
     return df
 
@@ -237,5 +237,5 @@ def feature_extraction():
 
 
 if __name__ == '__main__':
-    print(aspect_based_opinion_mining())
-    # part_of_speech()
+    # print(aspect_based_opinion_mining())
+    part_of_speech()
