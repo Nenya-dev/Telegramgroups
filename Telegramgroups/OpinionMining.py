@@ -1,6 +1,6 @@
 # https://medium.com/analytics-vidhya/aspect-based-sentiment-analysis-a-practical-approach-8f51029bbc4a
 import pickle
-
+import pprint
 import pandas as pd
 import stanfordnlp
 import nltk
@@ -14,13 +14,16 @@ from itertools import islice
 from nltk.tag.stanford import StanfordNERTagger
 import stanza
 import spacy_stanza
-
+from stop_words import get_stop_words
+from nltk.sentiment import SentimentIntensityAnalyzer
+from textblob_de import TextBlobDE
+from nltk import word_tokenize
 MODELS_DIR = '.'
 # stanfordnlp.download('de', MODELS_DIR)
 posts = NLP.posts_prep_two
 messages_original = NLP.posts_prep_one
 nlp = spacy.load("de_core_news_sm")
-nlp_stanza_spacy = spacy_stanza.load_pipeline("de")
+# nlp_stanza_spacy = spacy_stanza.load_pipeline("de")
 config = {
     'processors': 'tokenize,mwt,pos,lemma,depparse',  # Comma-separated list of processors to use
     'lang': 'fr',  # Language code for the language to build the Pipeline in
@@ -33,16 +36,18 @@ config = {
     'depparse_model_path': './de_gsd_models/de_gsd_parser.pt',
     'depparse_pretrain_path': './de_gsd_models/de_gsd.pretrain.pt'
 }
-nlp_stanford = stanfordnlp.Pipeline(**config)
+# nlp_stanford = stanfordnlp.Pipeline(**config)
 # stanza.download('de')
 nlp_stanza = stanza.Pipeline('de')
+stopwords_list = get_stop_words('german') + get_stop_words('english') + stopwords.words(
+    "english") + stopwords.words("german")
 
 
 def part_of_speech():
     pos = []
     name_entity = []
 
-    df = pd.DataFrame(list(posts.find()))
+    df = pd.DataFrame(list(messages_original.find())).head(200)
     # df = text_data['Message'].convert_dtypes(convert_string=True)
     for message in df['Message']:
         nlp_message = nlp(message)
@@ -55,19 +60,22 @@ def part_of_speech():
 
         df['entity_text'] = pd.Series(name_entity)
         df['PoS'] = pd.Series(pos)
-    df.to_pickle('PoS_2.pkl')
+   # df.to_pickle('PoS_2.pkl')
+    # print(df.head(20))
+    pprint.pprint(df['PoS'].values.tolist()[:200])
 
     return df
 
 
 def aspect_based_opinion_mining():
     stop_words = set(stopwords.words('german'))
-    df = pd.read_pickle('PoS_1.pkl')
+    # df = pd.read_pickle('PoS_1.pkl')
+    df = pd.DataFrame(list(messages_original.find()))
     PATH_TO_JAR = 'C:/Users/budde/PycharmProjects/Masterthesis/Telegramgroups/stanford-ner-2020-11-17/stanford-ner-4.2.0.jar'
     PATH_TO_MODEL = 'C:/Users/budde/PycharmProjects/Masterthesis/Telegramgroups/stanford-ner-2020-11-17/classifiers/dewac_175m_600.crf.ser.gz'
     java_path = 'C:/Program Files/AdoptOpenJDK/jdk-11.0.11.9-hotspot'
     os.environ['JAVAHOME'] = java_path
-
+    pos = part_of_speech()
 
     fcluster = []
     totalfeatureList = []
@@ -76,93 +84,90 @@ def aspect_based_opinion_mining():
     dic = {}
     tagger = StanfordNERTagger(model_filename=PATH_TO_MODEL, path_to_jar=PATH_TO_JAR, encoding='utf-8')
 
-    try:
-        for message in df['Message'].head(200):
-            sentList = nltk.sent_tokenize(message)
-            for text in sentList:
-                words = nltk.word_tokenize(text)
-                pos_tag = nltk.pos_tag(words)
-                tagged = tagger.tag(words)
-
-                newwordList = []
+    # for text in df['Message']:
+        #sentList = nltk.sent_tokenize(text)
+        #for line in sentList:
+        # doc = nlp(text)
+        # words = word_tokenize(text)
+        # pos_tag = nltk.pos_tag(words)
+        # print(doc)
+    tagged_list = pos['PoS'].values.tolist()
+    # print(tagged_list)
+    newwordList = []
+    flag = 0
+    for i in range(0, len(tagged_list) - 1):
+        if tagged_list[i][1] == "NN" and tagged_list[i + 1][1] == "NN":
+            newwordList.append(tagged_list[i][0] + tagged_list[i + 1][0])
+            flag = 1
+        else:
+            if flag == 1:
                 flag = 0
-                for i in range(0, len(pos_tag) - 1):
-                    if pos_tag[i][1] == "NN" and pos_tag[i + 1][1] == "NN":
-                        newwordList.append(pos_tag[i][0] + pos_tag[i + 1][0])
-                        flag = 1
-                    else:
-                        if flag == 1:
-                            flag = 0
-                            continue
-                        newwordList.append(pos_tag[i][0])
-                        if i == len(pos_tag) - 2:
-                            newwordList.append(pos_tag[i + 1][0])
+                continue
+            newwordList.append(tagged_list[i][0])
+            if i == len(tagged_list) - 2:
+                newwordList.append(tagged_list[i + 1][0])
+   # print(newwordList)
 
-                finaltxt = ' '.join(word for word in newwordList)
-                # print(finaltxt)
+    finaltxt = ' '.join(word for word in newwordList)
+    # print(finaltxt)
 
-                new_txt_list = nltk.word_tokenize(finaltxt)
-                wordList = [w for w in new_txt_list if not w in stop_words]
-                pos_tag = nltk.pos_tag(wordList)
+    new_txt_list = nltk.word_tokenize(finaltxt)
+    wordList = [w for w in new_txt_list if not w in stopwords_list]
+    pos_tag = nltk.pos_tag(wordList)
 
-                doc = nlp_stanza(finaltxt)
-                # doc = nlp_stanza_spacy(finaltxt)
-                dep_node = []
-                for dep_edge in doc.sentences[0].dependencies:
-                    dep_node.append([dep_edge[2].text, dep_edge[0].id, dep_edge[1]])
-                    # print(dep_node)
+    # print(finaltxt)
+    doc = nlp_stanza(finaltxt)
+    dep_node = []
+    for dep_edge in doc.sentences[0].dependencies:
+        dep_node.append([dep_edge[2].text, dep_edge[0].id, dep_edge[1]])
+        # print(dep_node)
 
-                for i in range(0, len(dep_node)):
-                    # print(len(dep_node))
-                    if int(dep_node[i][1]) != 0:
-                        # print(dep_node[i][1], ":", newwordList[(int(dep_node[i][1]) - 1)])
-                        dep_node[i][1] = newwordList[(int(dep_node[i][1]) - 1)]
+    for i in range(0, len(dep_node)):
+        # print(len(dep_node), len(newwordList))
+        if int(dep_node[i][1]) != 0:
+            dep_node[i][1] = newwordList[(int(dep_node[i][1]) - 1)]
+            # print(dep_node)
 
+    featureList = []
+    categories = []
+    for i in pos_tag:
+        if i[1] == 'JJ' or i == "NN" or i[1] == "JJR" or i[1] == "NNS" or i[1] == "RB":
+            featureList.append(list(i))
+            totalfeatureList.append(list(i))
+            categories.append(i[0])
+    print('featureList: ', featureList)
 
-                featureList = []
-                categories = []
-                for i in pos_tag:
-                    if i[1] == 'JJ' or i == "NN" or i[1] == "JJR" or i[1] == "NNS" or i[1] == "RB":
-                        featureList.append(list(i))
-                        totalfeatureList.append(list(i))
-                        categories.append(i[0])
+    for i in featureList:
+        filist = []
+        for j in dep_node:
+            if ((j[0] == i[0] or j[1] == i[0]) and (
+                    j[2] in ["nsubj", "acl:relcl", "obj", "dobj", "agent", "advmod", "amod", "neg", "prep_of",
+                             "acomp", "xcomp", "compound"])):
+                if j[0] == i[0]:
+                    filist.append(j[1])
+                else:
+                    filist.append(j[0])
+            fcluster.append([i[0], filist])
+    print("filist: ", filist)
 
-                for i in featureList:
-                    filist = []
-                    for j in dep_node:
-                        if ((j[0] == i[0] or j[1] == i[0]) and (
-                                j[2] in ["nsubj", "acl:relcl", "obj", "dobj", "agent", "advmod", "amod", "neg", "prep_of",
-                                         "acomp", "xcomp", "compound"])):
-                            if j[0] == i[0]:
-                                filist.append(j[1])
-                            else:
-                                filist.append(j[0])
-                        fcluster.append([i[0], filist])
+    for i in totalfeatureList:
+        dic[i[0]] = i[1]
 
-            for i in totalfeatureList:
-                dic[i[0]] = i[1]
+    for i in fcluster:
+        if dic[i[0]] == "NN":
+            finalcluster.append(i)
+            dic_cluster['NN'] = i
 
-            for i in fcluster:
-                if dic[i[0]] == "NN":
-                    finalcluster.append(i)
-                    dic_cluster['NN'] = i
+    finalcluster = [x for x in finalcluster if x[1]]
 
-            finalcluster = [x for x in finalcluster if x[1]]
+    print("total feature list:", totalfeatureList)
+    print('final cluster', finalcluster)
+    print("dic cluster", dic_cluster)
 
-            print("total feature list:", totalfeatureList)
-            print('final cluster', finalcluster)
-            print("dic cluster", dic_cluster)
+    # with open("finalcluster.pkl", "wb") as f:
+    #    pickle.dump(finalcluster, f)
 
-       # with open("finalcluster.pkl", "wb") as f:
-        #    pickle.dump(finalcluster, f)
-
-        return finalcluster
-    except IndexError as error:
-        return print(error)
-
-
-def sentiment():
-    finalcluster = aspect_based_opinion_mining()
+    # return finalcluster
 
 
 def name_entity_rec():
@@ -171,43 +176,36 @@ def name_entity_rec():
     PATH_TO_MODEL = 'C:/Users/budde/PycharmProjects/Masterthesis/Telegramgroups/stanford-ner-2020-11-17/classifiers/dewac_175m_600.crf.ser.gz'
     java_path = 'C:/Program Files/AdoptOpenJDK/jdk-11.0.11.9-hotspot'
     os.environ['JAVAHOME'] = java_path
+    # doc = nlp_stanza(df)
 
     tagger = StanfordNERTagger(model_filename=PATH_TO_MODEL, path_to_jar=PATH_TO_JAR, encoding='utf-8')
+    sentiment = []
     for text in df['Message'].head(20):
         words = nltk.word_tokenize(text)
-        pos_tag = nltk.pos_tag(text)
-        tagged = tagger.tag(words)
-        print(tagged)
-        print(pos_tag)
+        pos_tag = nltk.pos_tag(words)
+        tagged_words = tagger.tag(words)
+        # print(tagged_words)
+        blob = TextBlobDE(text)
+        if tagged_words == "I-PER" or tagged_words == "B-PER" or tagged_words == "I-ORG" or tagged_words == "B-ORG":
+            sentiment.append((tagged_words, ": ", blob.sentences, blob.noun_phrases, blob.sentiment))
+
+    pprint.pprint(sentiment)
 
 
-def word_dependency():
-    # df = pd.DataFrame(list(messages_original.find()))
+def nltk_sentiment():
     df = pd.read_pickle('PoS_1.pkl')
-    # print(df['PoS'].head(50))
-    df1 = df.head(100)
-    nlp.add_pipe("merge_entities")
-    nlp.add_pipe("merge_noun_chunks")
 
-    noun_chunks = {}
-    for text in df['Message']:
-        doc = nlp(text)
-        if doc.ents:
-            for ent in doc.ents:
-                noun_chunks['Entity_Label'] = ent.label_
-                noun_chunks['Entity_Text'] = ent.text
-                for chunk in doc.noun_chunks:
-                    noun_chunks['Text'] = chunk.text
-                    noun_chunks['Root_Text'] = chunk.root.text
-                    noun_chunks['Dep'] = chunk.root.dep_
-                    noun_chunks['Head_Text'] = chunk.root.head.text
-            print(noun_chunks)
+    for message in df['Message']:
+        words = nltk.word_tokenize(message)
+        all_words = nltk.FreqDist(words)
 
-    return noun_chunks
+        word_features = list(all_words)[:2000]
+        document = set(message)
+        features = {}
+        for word in word_features:
+            features['contains({})'.format(word)] = (word in document)
 
-
-def sentiment():
-    noun_chunks = word_dependency()
+        return features
 
 
 def feature_extraction():
@@ -238,14 +236,6 @@ def feature_extraction():
     print(weights_df.sort_values(by='weight', ascending=False).head(20))
 
 
-def TFidf():
-    df = pd.read_pickle('PoS.pkl')
-    tvec = TfidfVectorizer(min_df=.0025, max_df=.1, ngram_range=(1, 2))
-    tvec_weights = tvec.fit_transform(df.Message.dropna())
-    weights = np.asarray(tvec_weights.mean(axis=0)).ravel().tolist()
-    weights_df = pd.DataFrame({'term': tvec.get_feature_names(), 'weight': weights})
-    print(weights_df.sort_values(by='weight', ascending=False).head(20))
-
-
 if __name__ == '__main__':
     print(aspect_based_opinion_mining())
+    # part_of_speech()

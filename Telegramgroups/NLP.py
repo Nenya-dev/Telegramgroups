@@ -47,17 +47,28 @@ def data_prep():
     df.dropna(inplace=True)
     for message in df:
         message = str(message).lower()  # Lowercase words
+        message = re.sub(u'ä', 'ae', message)
+        message = re.sub(u'ö', 'oe', message)
+        message = re.sub(u'ü', 'ue', message)
+        message = re.sub(u'ß', 'ss', message)
+        message = re.sub(r'http://\S+|https://\S+', "", message)  # Remove urls
+        message = re.sub(r'/https:\/\/(?:www.)?youtu(?:be\.com|\.be)\/(?:watch\?vi?[=\/])?(\w{11})(?:&\w+=[^&\s]*)*/',
+                         "", message)
         message = re.sub(r"\[(.*?)\]", "", message)  # Remove [+XYZ chars] in content
         message = re.sub(r'[0-9\n]', "", message)  # Remove numbers
+        message = re.sub(r'[^\w]|_', ' ', message)
         message = re.sub(r"\s+", " ", message)  # Remove multiple spaces in content
         message = re.sub(r"\w+…|…", "", message)  # Remove ellipsis (and last word)
         message = re.sub(r"(?<=\w)-(?=\w)", " ", message)  # Replace dash between words
-        message = re.sub(r'http\S+|www.\S+', "", message)  # Remove urls
+
         message = re.sub(r"(?<=\w)-(?=\w)", " ", message)  # Replace dash between words
         # message = re.sub(r"[^\w\s]", "", message)  # Remove punctuation
         message = re.sub(r"[!@#$%^&*()[]{};:,./<>?\|`~-=_+__]", "", message)
-        message = re.sub(r'/_/g', "", message) # remove underscore
+        message = re.sub(r'/_/g', "", message)  # remove underscore
         message = re.sub(r"\W+", " ", message)
+        message = re.sub(r'^\s+|\s+$', "", message)  # remove whitepsace at beginning
+        message = re.sub(r'[^\x00-\x7f]', r'', message)  # remove all non ascii
+
         message = re.sub("["
                          u"\U0001F600-\U0001F64F"  # emoticons
                          u"\U0001F300-\U0001F5FF"  # symbols & pictographs
@@ -69,6 +80,7 @@ def data_prep():
                          u"\u200d"
                          u"\u2640-\u2642"
                          "]+", '', message)
+        message = re.sub(r'(?:^| )\w(?:$| )', ' ', message).strip()
 
         if len(message) > 2:
             messages_dict = {'Message': message}
@@ -99,7 +111,7 @@ def tokenize():
         # print(clean_messages)
 
         message_prep = TreebankWordDetokenizer().detokenize(clean_messages)
-        message_dict = {"Message": clean_messages}
+        message_dict = {"Message": message_prep}
         # print(message_dict)
         posts_prep_two.insert_one(message_dict)
 
@@ -128,6 +140,6 @@ def frequency_distribution():
 
 if __name__ == '__main__':
     # mongoDB_to_dataframe()
-    # data_prep()
-    tokenize()
+    data_prep()
+    # tokenize()
     # frequency_distribution()
