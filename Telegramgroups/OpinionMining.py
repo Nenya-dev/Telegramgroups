@@ -26,7 +26,7 @@ nlp = spacy.load("de_core_news_sm")
 # nlp_stanza_spacy = spacy_stanza.load_pipeline("de")
 config = {
     'processors': 'tokenize,mwt,pos,lemma,depparse',  # Comma-separated list of processors to use
-    'lang': 'fr',  # Language code for the language to build the Pipeline in
+    'lang': 'de',  # Language code for the language to build the Pipeline in
     'tokenize_model_path': './de_gsd_models/de_gsd_tokenizer.pt',
     # Processor-specific arguments are set with keys "{processor_name}_{argument_name}"
     'mwt_model_path': './de_gsd_models/de_gsd_mwt_expander.pt',
@@ -77,6 +77,7 @@ def aspect_based_opinion_mining():
     os.environ['JAVAHOME'] = java_path
     pos = part_of_speech()
 
+
     fcluster = []
     totalfeatureList = []
     finalcluster = []
@@ -84,74 +85,74 @@ def aspect_based_opinion_mining():
     dic = {}
     tagger = StanfordNERTagger(model_filename=PATH_TO_MODEL, path_to_jar=PATH_TO_JAR, encoding='utf-8')
 
-    # for text in df['Message']:
-        #sentList = nltk.sent_tokenize(text)
-        #for line in sentList:
-        # doc = nlp(text)
-        # words = word_tokenize(text)
-        # pos_tag = nltk.pos_tag(words)
-        # print(doc)
-    tagged_list = pos['PoS'].values.tolist()
-    # print(tagged_list)
-    newwordList = []
-    flag = 0
-    for i in range(0, len(tagged_list) - 1):
-        if tagged_list[i][1] == "NN" and tagged_list[i + 1][1] == "NN":
-            newwordList.append(tagged_list[i][0] + tagged_list[i + 1][0])
-            flag = 1
-        else:
-            if flag == 1:
-                flag = 0
-                continue
-            newwordList.append(tagged_list[i][0])
-            if i == len(tagged_list) - 2:
-                newwordList.append(tagged_list[i + 1][0])
-   # print(newwordList)
+    for text in df['Message']:
+        nlp_message = nlp(text)
+        taggedList = []
+        for token in nlp_message:
+            tagged_list = [token.text, token.tag_]
+            taggedList.append(tagged_list)
+        # print(taggedList)
+        new_word_list = []
+        flag = 0
+        for i in range(0, len(taggedList) - 1):
+            if taggedList[i][1] == "NN" and taggedList[i + 1][1] == "NN":
+                new_word_list.append(taggedList[i][0] + taggedList[i + 1][0])
+                flag = 1
+            else:
+                if flag == 1:
+                    flag = 0
+                    continue
+                new_word_list.append(taggedList[i][0])
+                if i == len(taggedList) - 2:
+                    new_word_list.append(taggedList[i + 1][0])
 
-    finaltxt = ' '.join(word for word in newwordList)
-    # print(finaltxt)
+        finaltxt = ' '.join(word for word in new_word_list)
 
-    new_txt_list = nltk.word_tokenize(finaltxt)
-    wordList = [w for w in new_txt_list if not w in stopwords_list]
-    pos_tag = nltk.pos_tag(wordList)
+        new_txt_list = nltk.word_tokenize(finaltxt)
+        wordList = [w for w in new_txt_list if not w in stopwords_list]
+        # print(wordList)
+        pos_tag = []
+        for i in wordList:
+            word_list = nlp(i)
+            for token in word_list:
+                pos_list = [token.text, token.tag_]
+                pos_tag.append(pos_list)
 
-    # print(finaltxt)
-    doc = nlp_stanza(finaltxt)
-    dep_node = []
-    for dep_edge in doc.sentences[0].dependencies:
-        dep_node.append([dep_edge[2].text, dep_edge[0].id, dep_edge[1]])
-        # print(dep_node)
+        doc = nlp_stanza(finaltxt)
+        dep_node = []
+        for dep_edge in doc.sentences[0].dependencies:
+            dep_node.append([dep_edge[2].text, dep_edge[0].id, dep_edge[1]])
 
-    for i in range(0, len(dep_node)):
-        # print(len(dep_node), len(newwordList))
-        if int(dep_node[i][1]) != 0:
-            dep_node[i][1] = newwordList[(int(dep_node[i][1]) - 1)]
-            # print(dep_node)
+        for i in range(0, len(dep_node)):
+            if int(dep_node[i][1]) != 0:
+                dep_node[i][1] = new_word_list[(int(dep_node[i][1]) - 1)]
+        print(dep_node)
 
-    featureList = []
-    categories = []
-    for i in pos_tag:
-        if i[1] == 'JJ' or i == "NN" or i[1] == "JJR" or i[1] == "NNS" or i[1] == "RB":
-            featureList.append(list(i))
-            totalfeatureList.append(list(i))
-            categories.append(i[0])
-    print('featureList: ', featureList)
+        featureList = []
+        categories = []
+        for i in pos_tag:
+            if i[1] == 'JJ' or i == "NN" or i[1] == "JJR" or i[1] == "NNS" or i[1] == "RB":
+                featureList.append(list(i))
+                totalfeatureList.append(list(i))
+                categories.append(i[0])
+        # print('featureList: ', featureList)
 
-    for i in featureList:
-        filist = []
-        for j in dep_node:
-            if ((j[0] == i[0] or j[1] == i[0]) and (
-                    j[2] in ["nsubj", "acl:relcl", "obj", "dobj", "agent", "advmod", "amod", "neg", "prep_of",
-                             "acomp", "xcomp", "compound"])):
-                if j[0] == i[0]:
-                    filist.append(j[1])
-                else:
-                    filist.append(j[0])
-            fcluster.append([i[0], filist])
-    print("filist: ", filist)
+        for i in featureList:
+            filist = []
+            for j in dep_node:
+                if ((j[0] == i[0] or j[1] == i[0]) and (
+                        j[2] in ["nsubj", "acl:relcl", "obj", "dobj", "agent", "advmod", "amod", "neg", "prep_of",
+                                 "acomp", "xcomp", "compound"])):
+                    if j[0] == i[0]:
+                        filist.append(j[1])
+                    else:
+                        filist.append(j[0])
+                fcluster.append([i[0], filist])
+            print("filist: ", filist)
 
     for i in totalfeatureList:
         dic[i[0]] = i[1]
+    print("dic: ", dic)
 
     for i in fcluster:
         if dic[i[0]] == "NN":
@@ -237,5 +238,4 @@ def feature_extraction():
 
 
 if __name__ == '__main__':
-    # print(aspect_based_opinion_mining())
-    part_of_speech()
+    print(aspect_based_opinion_mining())
