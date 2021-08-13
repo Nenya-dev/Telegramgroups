@@ -1,5 +1,6 @@
 # https://medium.com/analytics-vidhya/aspect-based-sentiment-analysis-a-practical-approach-8f51029bbc4a
 import pickle
+from itertools import chain
 import pprint
 import pandas as pd
 import stanfordnlp
@@ -7,6 +8,7 @@ import nltk
 import os
 from nltk.corpus import stopwords
 import spacy
+from spacy.tokens import Span
 from Telegramgroups import NLP
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer, TfidfTransformer
 import numpy as np
@@ -18,6 +20,7 @@ from stop_words import get_stop_words
 from nltk.sentiment import SentimentIntensityAnalyzer
 from textblob_de import TextBlobDE
 from nltk import word_tokenize
+
 MODELS_DIR = '.'
 # stanfordnlp.download('de', MODELS_DIR)
 posts = NLP.posts_prep_two
@@ -147,18 +150,57 @@ def aspect_based_opinion_mining():
         if dic[i[0]] == "NN":
             final_cluster.append(i)
 
-    # final_cluster = [x for x in final_cluster if x[1]]
-    dic_cluster = pd.DataFrame(final_cluster)
-    # print("total feature list:", totalfeatureList)
-    print('final cluster', final_cluster)
-    print(('dic_cluster', dic_cluster))
-    # print("dic cluster", dic_cluster)
+    final_cluster = [x for x in final_cluster if x[1]]
 
+    dic_cluster = pd.DataFrame(final_cluster, columns=['Noun', 'features'])
+
+    # print("total feature list:", totalfeatureList)
+    # print('final cluster', final_cluster)
+    # print(dic_cluster)
+
+    dic_cluster['features_clean'] = dic_cluster['features'].astype(str).apply(word_tokenize)
+    dic_cluster['features_clean'] = dic_cluster['features'].apply(
+        lambda words: [word for word in words if word not in stopwords_list])
     # with open("finalcluster.pkl", "wb") as f:
     #    pickle.dump(finalcluster, f)
 
-    # return finalcluster
+    return dic_cluster
+
+
+def name_entity_sentiment():
+    txt = aspect_based_opinion_mining()
+    nlp.add_pipe("merge_entities")
+    nlp.add_pipe("merge_noun_chunks")
+    df = pd.DataFrame(txt)
+
+    entity_list = []
+    for text in txt['Noun']:
+        doc = nlp(text)
+        ents = [e.label_ for e in doc.ents]
+        entity_list.append(ents)
+
+    txt['Entity'] = entity_list
+
+    # txt.to_csv('entity.csv')
+    print(txt.iloc[10:60])
+
+
+def entity():
+    PATH_TO_JAR = 'C:/Users/budde/PycharmProjects/Masterthesis/Telegramgroups/stanford-ner-2020-11-17/stanford-ner-4.2.0.jar'
+    PATH_TO_MODEL = 'C:/Users/budde/PycharmProjects/Masterthesis/Telegramgroups/stanford-ner-2020-11-17/classifiers/dewac_175m_600.crf.ser.gz'
+    java_path = 'C:/Program Files/AdoptOpenJDK/jdk-11.0.11.9-hotspot'
+    os.environ['JAVAHOME'] = java_path
+    # doc = nlp_stanza(df)
+    txt = aspect_based_opinion_mining()
+    tagger = StanfordNERTagger(model_filename=PATH_TO_MODEL, path_to_jar=PATH_TO_JAR, encoding='utf-8')
+    sentiment = []
+    for text in txt['Noun']:
+        words = nltk.word_tokenize(text)
+        tagged_words = tagger.tag(words)
+        print(tagged_words)
 
 
 if __name__ == '__main__':
-    print(aspect_based_opinion_mining())
+    # aspect_based_opinion_mining()
+    # name_entity_sentiment()
+    entity()

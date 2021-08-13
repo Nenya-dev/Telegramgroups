@@ -1,4 +1,10 @@
 def name_entity_rec():
+    for text in txt['Noun']:
+        doc = nlp(text)
+        if doc[0].ent_type_:
+            txt['Entity'] = doc[0].ent_type_
+        else:
+            txt['Entity'] = None
     df = pd.read_pickle('PoS_1.pkl')
     PATH_TO_JAR = 'C:/Users/budde/PycharmProjects/Masterthesis/Telegramgroups/stanford-ner-2020-11-17/stanford-ner-4.2.0.jar'
     PATH_TO_MODEL = 'C:/Users/budde/PycharmProjects/Masterthesis/Telegramgroups/stanford-ner-2020-11-17/classifiers/dewac_175m_600.crf.ser.gz'
@@ -16,6 +22,9 @@ def name_entity_rec():
         blob = TextBlobDE(text)
         if tagged_words == "I-PER" or tagged_words == "B-PER" or tagged_words == "I-ORG" or tagged_words == "B-ORG":
             sentiment.append((tagged_words, ": ", blob.sentences, blob.noun_phrases, blob.sentiment))
+            if tagged_words == "I-PER" or tagged_words == "B-PER" or tagged_words == "I-ORG" or tagged_words == "B-ORG":
+                for elem in txt['features']:
+                    sentiment.append((tagged_words, ": ", elem, ', ', TextBlobDE(elem).sentiment))
 
     pprint.pprint(sentiment)
 
