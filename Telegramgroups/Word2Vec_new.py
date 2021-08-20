@@ -10,10 +10,84 @@ import numpy as np
 from nltk.cluster import KMeansClusterer, euclidean_distance
 from sklearn import cluster, metrics
 from sklearn.neighbors import KDTree
+from sklearn.datasets import make_blobs
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import DBSCAN
+import spacy
+import matplotlib.pyplot as plt
+
 # from wordcloud import WordCloud, ImageColorGenerator
 posts = NLP.posts_prep_one
 df = pd.DataFrame(list(posts.find()))
 wpt = WordPunctTokenizer()
+nlp = spacy.load("de_core_news_lg")
+
+
+def vectorized():
+    vectors = []
+    for text in df['Message']:
+        doc = nlp(text)
+        for token in doc:
+            vectors.append(token.vector)
+            print('Vector for %s:' % token, token.vector)
+        matrix_rows = []
+        for vec in doc:
+            row = [vec.similarity(token2) for token2 in doc]
+            matrix_rows.append(row)
+
+        similarity_matrix = np.array(matrix_rows)
+        print(similarity_matrix)
+
+    return vectors
+
+
+def cluster_dbscan():
+    vectors = vectorized()
+    X, labels_true = make_blobs(n_samples=750, centers=vectors, cluster_std=0.4,
+                               random_state=0)
+    X = StandardScaler().fit_transform(X)
+
+    dbscan = DBSCAN(metric='euclidean', eps=0.07, min_samples=3).fit(X)
+    core_samples_mask = np.zeros_like(dbscan.labels_, dtype=bool)
+    core_samples_mask[dbscan.core_sample_indices_] = True
+    labels = dbscan.labels_
+
+    n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
+    n_noise_ = list(labels).count(-1)
+
+    print('Estimated number of clusters: %d' % n_clusters_)
+    print('Estimated number of noise points: %d' % n_noise_)
+    print("Homogeneity: %0.3f" % metrics.homogeneity_score(labels_true, labels))
+    print("Completeness: %0.3f" % metrics.completeness_score(labels_true, labels))
+    print("V-measure: %0.3f" % metrics.v_measure_score(labels_true, labels))
+    print("Adjusted Rand Index: %0.3f"
+          % metrics.adjusted_rand_score(labels_true, labels))
+    print("Adjusted Mutual Information: %0.3f"
+          % metrics.adjusted_mutual_info_score(labels_true, labels))
+    print("Silhouette Coefficient: %0.3f"
+          % metrics.silhouette_score(X, labels))
+
+    # Black removed and is used for noise instead.
+    unique_labels = set(labels)
+    colors = [plt.get_cmap('Spectral')(each)
+              for each in np.linspace(0, 1, len(unique_labels))]
+    for k, col in zip(unique_labels, colors):
+        if k == -1:
+            # Black used for noise.
+            col = [0, 0, 0, 1]
+
+        class_member_mask = (labels == k)
+
+        xy = X[class_member_mask & core_samples_mask]
+        plt.plot(xy[:, 0], xy[:, 1], 'o', markerfacecolor=tuple(col),
+                 markeredgecolor='k', markersize=14)
+
+        xy = X[class_member_mask & ~core_samples_mask]
+        plt.plot(xy[:, 0], xy[:, 1], 'o', markerfacecolor=tuple(col),
+                 markeredgecolor='k', markersize=6)
+
+    plt.title('Estimated number of clusters: %d' % n_clusters_)
+    plt.show()
 
 
 def word2vec():
@@ -38,15 +112,15 @@ def word2vec():
     model_name = "model_training"
     messages_vec.save(model_name)
 
-    Z = messages_vec.wv.
-    print(Z[0].shape)
-    print(Z[0])
+    # Z = messages_vec.wv.
+    # print(Z[0].shape)
+    # print(Z[0])
     # Test
     # pp.pprint(messages_vec.wv.most_similar('merkel', topn=10))
 
-    centers, clusters = k_means(Z, 50)
-    centroid_map = dict(zip(messages_vec.wv.index2word, clusters))
-    top_words = get_top_words(messages_vec.wv.index2word, 20, centers, Z)
+    # centers, clusters = k_means(Z, 50)
+    # centroid_map = dict(zip(messages_vec.wv.index2word, clusters))
+    # top_words = get_top_words(messages_vec.wv.index2word, 20, centers, Z)
 
     return messages_vec
 
@@ -91,4 +165,5 @@ def get_top_words(index2word, k, centers, wordvecs):
 
 
 if __name__ == '__main__':
-    word2vec()
+    vectorized()
+    cluster_dbscan()

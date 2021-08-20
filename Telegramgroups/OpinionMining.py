@@ -14,6 +14,7 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer, Tf
 import numpy as np
 from itertools import islice
 from nltk.tag.stanford import StanfordNERTagger
+from nltk.tokenize.treebank import TreebankWordDetokenizer
 import stanza
 import spacy_stanza
 from stop_words import get_stop_words
@@ -80,16 +81,29 @@ def aspect_based_opinion_mining():
     java_path = 'C:/Program Files/AdoptOpenJDK/jdk-11.0.11.9-hotspot'
     os.environ['JAVAHOME'] = java_path
 
+    tagger = StanfordNERTagger(model_filename=PATH_TO_MODEL, path_to_jar=PATH_TO_JAR, encoding='utf-8')
     fcluster = []
     totalfeatureList = []
     final_cluster = []
-    dic_cluster = {}
     dic = {}
+    parse_tree = []
+    sentiment = []
+    tagged_words_list = []
+    entity_chunks = []
+    feature_list = []
     for text in df['Message'].head(200):
         nlp_message = nlp(text)
+        words = nltk.word_tokenize(text)
+        tagged_words = tagger.tag(words)
+        tagged_words_list.append(tagged_words)
+
+        for token, tag in tagged_words:
+            if tag != 'O':
+                entity_chunks.append((token, tag))
+
         taggedList = []
-        for token in nlp_message:
-            tagged_list = [token.text, token.tag_]
+        for token_nlp in nlp_message:
+            tagged_list = [token_nlp.text, token_nlp.tag_]
             taggedList.append(tagged_list)
 
         new_word_list = []
@@ -103,69 +117,30 @@ def aspect_based_opinion_mining():
                     flag = 0
                     continue
                 new_word_list.append(taggedList[i][0])
+
                 if i == len(taggedList) - 2:
-                    new_word_list.append(taggedList[i + 1][0])
+                    new_word_list.append(taggedList[i][0])
 
-        finaltxt = ' '.join(word for word in new_word_list)
+        final_text = ' '.join(word for word in new_word_list)
 
-        new_txt_list = word_tokenize(finaltxt)
+        new_txt_list = word_tokenize(final_text)
         wordList = [w for w in new_txt_list if not w in stopwords_list]
-        pos_tag = []
-        for i in wordList:
-            word_list = nlp(i)
-            for token in word_list:
-                pos_list = [token.text, token.tag_]
-                pos_tag.append(pos_list)
-        # print(pos_tag)
-        dep_node = []
+        text_sentences = TreebankWordDetokenizer().detokenize(wordList)
+        doc = nlp(text_sentences)
+        for token in doc:
+            head_child = [token.text, token.dep_, token.head.text, token.head.pos_]
+            parse_tree.append(head_child)
+            if token.head.pos_ == 'NOUN':
+                feature_list.append([token.head.text, token.text])
+            else:
+                continue
 
-        doc = nlp(finaltxt)
-        for dep_edge in doc:
-            dep_node.append([dep_edge.text, dep_edge.head.text, dep_edge.dep_])
-
-        featureList = []
-        categories = []
-        for i in pos_tag:
-            if i[1] == 'ADJA' or i[1] == "NN" or i[1] == "ADJD" or i[1] == "ADV":
-                featureList.append(list(i))
-                totalfeatureList.append(list(i))
-                categories.append(i[0])
-
-        for i in featureList:
-            filist = []
-            for j in dep_node:
-                if ((j[0] == i[0] or j[1] == i[0]) and (
-                        j[2] in ["sb", "sbp", "app", "oc", "og", "op", "oa", "avc", "adc",
-                                 "ng", "mo", "pnc", "nk"])):
-                    if j[0] == i[0]:
-                        filist.append(j[1])
-                    else:
-                        filist.append(j[0])
-            fcluster.append([i[0], filist])
-
-    for i in totalfeatureList:
-        dic[i[0]] = i[1]
-
-    for i in fcluster:
-        if dic[i[0]] == "NN":
-            final_cluster.append(i)
-
-    final_cluster = [x for x in final_cluster if x[1]]
-
-    dic_cluster = pd.DataFrame(final_cluster, columns=['Noun', 'features'])
-
+    # print('1', feature_list)
+    dic_cluster = pd.DataFrame(feature_list, columns=['Noun', 'features'])
+    print(dic_cluster)
     # print("total feature list:", totalfeatureList)
     # print('final cluster', final_cluster)
     # print(dic_cluster)
-
-    dic_cluster['features_clean'] = dic_cluster['features'].astype(str).apply(word_tokenize)
-    dic_cluster['features_clean'] = dic_cluster['features'].apply(
-        lambda words: [word for word in words if word not in stopwords_list])
-    # with open("finalcluster.pkl", "wb") as f:
-    #    pickle.dump(finalcluster, f)
-
-    return dic_cluster
-
 
 def name_entity_sentiment():
     txt = aspect_based_opinion_mining()
@@ -191,16 +166,15 @@ def entity():
     java_path = 'C:/Program Files/AdoptOpenJDK/jdk-11.0.11.9-hotspot'
     os.environ['JAVAHOME'] = java_path
     # doc = nlp_stanza(df)
-    txt = aspect_based_opinion_mining()
+    txt = pd.DataFrame(list(messages_original.find()))
     tagger = StanfordNERTagger(model_filename=PATH_TO_MODEL, path_to_jar=PATH_TO_JAR, encoding='utf-8')
     sentiment = []
-    for text in txt['Noun']:
+    for text in txt['Message']:
         words = nltk.word_tokenize(text)
         tagged_words = tagger.tag(words)
         print(tagged_words)
 
 
 if __name__ == '__main__':
-    # aspect_based_opinion_mining()
+    aspect_based_opinion_mining()
     # name_entity_sentiment()
-    entity()

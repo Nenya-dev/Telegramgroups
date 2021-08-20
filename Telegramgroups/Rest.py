@@ -71,3 +71,65 @@ def feature_extraction():
     weights = np.asarray(transformed_weights.mean(axis=0)).ravel().tolist()
     weights_df = pd.DataFrame({'term': cvec.get_feature_names(), 'weight': weights})
     print(weights_df.sort_values(by='weight', ascending=False).head(20))
+
+def abom():
+    for token_nlp in nlp_message:
+        tagged_list = [token_nlp.text, token_nlp.tag_]
+        taggedList.append(tagged_list)
+
+    new_word_list = []
+    flag = 0
+    for i in range(0, len(taggedList) - 1):
+        if taggedList[i][1] == "NN" and taggedList[i + 1][1] == "NN":
+            new_word_list.append(taggedList[i][0] + ' ' + taggedList[i + 1][0])
+            flag = 1
+        else:
+            if flag == 1:
+                flag = 0
+                continue
+            new_word_list.append(taggedList[i][0])
+            if i == len(taggedList) - 2:
+                new_word_list.append(taggedList[i][0])
+
+                new_txt_list = word_tokenize(finaltxt)
+                wordList = [w for w in new_txt_list if not w in stopwords_list]
+                pos_tag = []
+                for i in wordList:
+                    word_list = nlp(i)
+                    for token_nlp in word_list:
+                        pos_list = [token_nlp.text, token_nlp.tag_]
+                        pos_tag.append(pos_list)
+
+                doc = nlp(finaltxt)
+
+    finaltxt = ' '.join(word for word in new_word_list)
+    for dep_edge in doc:
+        dep_node.append([dep_edge.text, dep_edge.head.text, dep_edge.dep_])
+    featureList = []
+        categories = []
+        for i in pos_tag:
+            if i[1] == 'ADJA' or i[1] == "NN" or i[1] == "ADJD" or i[1] == "ADV":
+                featureList.append(list(i))
+                totalfeatureList.append(list(i))
+                categories.append(i[0])
+
+        for i in featureList:
+            filist = []
+            for j in dep_node:
+                if ((j[0] == i[0] or j[1] == i[0]) and (
+                        j[2] in ["sb", "sbp", "app", "oc", "og", "op", "oa", "avc", "adc",
+                                 "ng", "mo", "pnc", "nk"])):
+                    if j[0] == i[0]:
+                        filist.append(j[1])
+                    else:
+                        filist.append(j[0])
+            fcluster.append([i[0], filist])
+
+    for i in totalfeatureList:
+        dic[i[0]] = i[1]
+
+    for i in fcluster:
+        if dic[i[0]] == "NN":
+            final_cluster.append(i)
+
+    final_cluster = [x for x in final_cluster if x[1]]
